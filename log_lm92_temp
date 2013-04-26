@@ -1,0 +1,95 @@
+#!/usr/bin/python
+# -*- encoding: utf-8 -*-
+
+from logging import debug, info, warn, error, fatal
+import time
+import smbus
+
+def swap_msb_lsb_16(val) :
+	return ((val >> 8) & 0xff)|((val << 8) & 0xff00)
+
+def unsigned_to_signed(val,msb) :
+	mask = msb - 1
+	if val & msb :
+		return -msb + (val & mask)
+	return val & mask
+
+#####
+# Decode raw bits returned by smbus back to a temperature
+# in degrees centigrade & status bits.
+#
+# - smbus reads 16bits as LSB, MSB (little endian) but
+# - LM92 returns data as MSB, LSB (big endian).
+# - Temperature is to be interpreted as a signed two-complement
+#    integer with 0.0625 degC per digit.
+#
+# Temperature Register
+#   D15  D14 ...  D3   D2   D1  D0
+#   Sign MSB ... LSB CRIT HIGH LOW
+###
+
+def lm92_raw_to_degC(val) :
+	bits = swap_msb_lsb_16(val)
+	temp_digits = unsigned_to_signed(bits >> 3,0x1000)
+	return temp_digits * 0.0625, (bits & 0x07)
+
+def status_to_txt(bits) :
+	if bits == 0 :
+		return '-'
+	arr = list()
+	if bits & 0x40 :
+		arr.append('Critical')
+	if bits & 0x20 :
+		arr.append('High')
+	if bits & 0x10 :
+		arr.append('Low')
+	return ','.join(arr)
+	
+
+def main() :
+	import optparse
+	P = optparse.OptionParser()
+	P.add_option('-d','--debug',action='store_true',default=False,
+		help='Be very verbose.')
+
+	P.add_option('-b','--bus',metavar='BUS#',default=0,
+		help='i2c bus number',action='store',type='int')
+	P.add_option('-n','--devnumber',metavar='DEV#',default=0x48,
+		help='i2c device number',action='store',type='int')
+	opts, args = P.parse_args()
+
+	import logging
+	logging.basicConfig(format='%(asctime)-15s %(levelname)4s %(message)s',
+		level=logging.DEBUG if opts.debug else logging.INFO,
+		datefmt='%Y-%m-%d %H:%M:%S')
+	debug('Logging level set to debug.') # only shown when debug is on
+
+	t0 = time.time()
+
+	of = None
+	if len(args) > 0 :
+		of = file(args[0],'w')
+		info('Writing to logfile %s.',args[0])
+		of.write('# Logfile starts at %s\n'%(
+			time.strftime('%Y-%m-%d %H:%M:%S',time.localtime(t0))
+		))
+
+	bus = smbus.SMBus(opts.bus)
+
+	while True :
+		t = time.time()
+		dt = t - t0
+
+		raw = bus.read_word_data(opts.devnumber,0)
+		temp_degC,status = lm92_raw_to_degC(raw)
+
+		info('Raw digits $%04x -> %f °C, Status is %s',raw,temp_degC,
+			status_to_txt(status))
+
+		if of :
+			of.write('%f %f %d\n'%(dt,temp_degC,status))
+		time.sleep(5.0)
+
+
+if __name__ == '__main__' :
+	main()
