@@ -3,7 +3,7 @@ Log temperature via a LM92 connected to the i2c-bus.
 Uses the python-smbus module and requires access to /dev/i2c-0.
 
 
-	Usage: log_lm92_temp [options]
+	Usage: log_lm92_temp [options] [LOGFILE]
 
 	Options:
 	  -h, --help            show this help message and exit
@@ -12,3 +12,15 @@ Uses the python-smbus module and requires access to /dev/i2c-0.
 	  -n DEV#, --devnumber=DEV#
 	                        i2c device number
 
+Writes temperature to the logfile in ASCII format:
+
+	# Logfile starts at 2013-04-26 11:06:03
+	0.004470 26.125000 0
+	5.013886 26.187500 0
+
+	^	 ^	   ^
+	|	 |	   |
+	|	 |	LM92 status bits, 4=CRIT, 2=HIGH, 1=LOW
+	|	Temperature in °C
+	|
+	seconds since start of script
