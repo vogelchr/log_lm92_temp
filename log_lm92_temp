@@ -48,7 +48,7 @@ def status_to_txt(bits) :
 
 def main() :
 	import optparse
-	P = optparse.OptionParser()
+	P = optparse.OptionParser(usage='%prog [options] [LOGFILE]')
 	P.add_option('-d','--debug',action='store_true',default=False,
 		help='Be very verbose.')
 
